@@ -34,10 +34,23 @@ import org.zeroturnaround.exec.ProcessResult;
  * <strong>WARNING:</strong> This implementation provides NO isolation and should only be
  * used when Docker is not available. Commands executed through this sandbox can access
  * and modify the host system.
+ * </p>
  *
  * <p>
- * This is intended as a fallback option for development or testing scenarios where Docker
- * is not available. Production deployments should use {@link DockerSandbox}.
+ * Use the {@link #builder()} for fluent configuration including temp directory creation
+ * and initial file setup:
+ * </p>
+ *
+ * <pre>{@code
+ * try (Sandbox sandbox = LocalSandbox.builder()
+ *         .tempDirectory("test-")
+ *         .withFile("src/Main.java", "public class Main {}")
+ *         .withFile("pom.xml", pomContent)
+ *         .build()) {
+ *     ExecResult result = sandbox.exec(ExecSpec.of("mvn", "compile"));
+ *     assertTrue(sandbox.files().exists("target/classes/Main.class"));
+ * }  // Auto-cleanup on close
+ * }</pre>
  */
 public final class LocalSandbox implements Sandbox {
 
@@ -47,13 +60,17 @@ public final class LocalSandbox implements Sandbox {
 
 	private final List<ExecSpecCustomizer> customizers;
 
+	private final boolean cleanupOnClose;
+
+	private final LocalSandboxFiles sandboxFiles;
+
 	private volatile boolean closed = false;
 
 	/**
 	 * Creates a LocalSandbox with the current working directory.
 	 */
 	public LocalSandbox() {
-		this(Path.of(System.getProperty("user.dir")), List.of());
+		this(Path.of(System.getProperty("user.dir")), List.of(), false);
 	}
 
 	/**
@@ -61,7 +78,7 @@ public final class LocalSandbox implements Sandbox {
 	 * @param workingDirectory the working directory for command execution
 	 */
 	public LocalSandbox(Path workingDirectory) {
-		this(workingDirectory, List.of());
+		this(workingDirectory, List.of(), false);
 	}
 
 	/**
@@ -70,9 +87,29 @@ public final class LocalSandbox implements Sandbox {
 	 * @param customizers list of customizers to apply before execution
 	 */
 	public LocalSandbox(Path workingDirectory, List<ExecSpecCustomizer> customizers) {
+		this(workingDirectory, customizers, false);
+	}
+
+	/**
+	 * Creates a LocalSandbox with full configuration.
+	 * @param workingDirectory the working directory for command execution
+	 * @param customizers list of customizers to apply before execution
+	 * @param cleanupOnClose whether to delete the working directory on close
+	 */
+	LocalSandbox(Path workingDirectory, List<ExecSpecCustomizer> customizers, boolean cleanupOnClose) {
 		this.workingDirectory = workingDirectory;
 		this.customizers = List.copyOf(customizers);
+		this.cleanupOnClose = cleanupOnClose;
+		this.sandboxFiles = new LocalSandboxFiles(this, workingDirectory);
 		logger.warn("LocalSandbox created - NO ISOLATION PROVIDED. Commands execute directly on host system.");
+	}
+
+	/**
+	 * Creates a builder for LocalSandbox with fluent configuration.
+	 * @return a new Builder instance
+	 */
+	public static Builder builder() {
+		return new Builder();
 	}
 
 	@Override
@@ -232,13 +269,49 @@ public final class LocalSandbox implements Sandbox {
 
 	@Override
 	public void close() {
+		if (closed) {
+			return;
+		}
 		closed = true;
+
+		if (cleanupOnClose && workingDirectory != null) {
+			try {
+				deleteDirectoryRecursively(workingDirectory);
+				logger.debug("LocalSandbox cleaned up temp directory: {}", workingDirectory);
+			}
+			catch (IOException e) {
+				logger.warn("Failed to cleanup temp directory: {}", workingDirectory, e);
+			}
+		}
 		logger.debug("LocalSandbox closed");
+	}
+
+	private void deleteDirectoryRecursively(Path path) throws IOException {
+		if (java.nio.file.Files.exists(path)) {
+			java.nio.file.Files.walk(path).sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+				try {
+					java.nio.file.Files.delete(p);
+				}
+				catch (IOException e) {
+					logger.warn("Failed to delete: {}", p, e);
+				}
+			});
+		}
 	}
 
 	@Override
 	public boolean isClosed() {
 		return closed;
+	}
+
+	@Override
+	public SandboxFiles files() {
+		return sandboxFiles;
+	}
+
+	@Override
+	public boolean shouldCleanupOnClose() {
+		return cleanupOnClose;
 	}
 
 	/**
@@ -251,8 +324,126 @@ public final class LocalSandbox implements Sandbox {
 
 	@Override
 	public String toString() {
-		return String.format("LocalSandbox{workDir=%s, customizers=%d, closed=%s}", workingDirectory,
-				customizers.size(), closed);
+		return String.format("LocalSandbox{workDir=%s, customizers=%d, cleanupOnClose=%s, closed=%s}", workingDirectory,
+				customizers.size(), cleanupOnClose, closed);
+	}
+
+	/**
+	 * Builder for creating LocalSandbox instances with fluent configuration.
+	 */
+	public static class Builder {
+
+		private Path workingDirectory;
+
+		private List<ExecSpecCustomizer> customizers = new ArrayList<>();
+
+		private List<FileSpec> initialFiles = new ArrayList<>();
+
+		private boolean createTempDirectory = false;
+
+		private String tempPrefix = "sandbox-";
+
+		/**
+		 * Set the working directory for the sandbox.
+		 * @param path the working directory path
+		 * @return this builder
+		 */
+		public Builder workingDirectory(Path path) {
+			this.workingDirectory = path;
+			this.createTempDirectory = false;
+			return this;
+		}
+
+		/**
+		 * Create a temporary directory for the sandbox. The directory will be
+		 * automatically deleted when the sandbox is closed.
+		 * @return this builder
+		 */
+		public Builder tempDirectory() {
+			this.createTempDirectory = true;
+			return this;
+		}
+
+		/**
+		 * Create a temporary directory with a custom prefix. The directory will be
+		 * automatically deleted when the sandbox is closed.
+		 * @param prefix the prefix for the temp directory name
+		 * @return this builder
+		 */
+		public Builder tempDirectory(String prefix) {
+			this.createTempDirectory = true;
+			this.tempPrefix = prefix;
+			return this;
+		}
+
+		/**
+		 * Add an ExecSpec customizer.
+		 * @param customizer the customizer to add
+		 * @return this builder
+		 */
+		public Builder customizer(ExecSpecCustomizer customizer) {
+			this.customizers.add(customizer);
+			return this;
+		}
+
+		/**
+		 * Add a file to be created when the sandbox is built.
+		 * @param path relative path within the sandbox
+		 * @param content file content
+		 * @return this builder
+		 */
+		public Builder withFile(String path, String content) {
+			this.initialFiles.add(FileSpec.of(path, content));
+			return this;
+		}
+
+		/**
+		 * Add multiple files to be created when the sandbox is built.
+		 * @param files list of file specifications
+		 * @return this builder
+		 */
+		public Builder withFiles(List<FileSpec> files) {
+			this.initialFiles.addAll(files);
+			return this;
+		}
+
+		/**
+		 * Build the LocalSandbox instance.
+		 * @return a new LocalSandbox
+		 * @throws SandboxException if the sandbox cannot be created
+		 */
+		public LocalSandbox build() {
+			Path workDir;
+			boolean cleanup;
+
+			if (createTempDirectory) {
+				try {
+					workDir = java.nio.file.Files.createTempDirectory(tempPrefix);
+					cleanup = true;
+				}
+				catch (IOException e) {
+					throw new SandboxException("Failed to create temp directory", e);
+				}
+			}
+			else if (workingDirectory != null) {
+				workDir = workingDirectory;
+				cleanup = false;
+			}
+			else {
+				workDir = Path.of(System.getProperty("user.dir"));
+				cleanup = false;
+			}
+
+			LocalSandbox sandbox = new LocalSandbox(workDir, customizers, cleanup);
+
+			// Setup initial files
+			if (!initialFiles.isEmpty()) {
+				sandbox.files().setup(initialFiles);
+			}
+
+			return sandbox;
+		}
+
 	}
 
 }

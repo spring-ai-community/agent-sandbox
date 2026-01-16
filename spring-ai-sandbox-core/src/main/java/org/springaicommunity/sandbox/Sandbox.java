@@ -23,10 +23,25 @@ import java.nio.file.Path;
  * <p>
  * Provides secure execution of agent commands with proper isolation and resource
  * management. Implementations should ensure commands cannot affect the host system.
+ * </p>
  *
  * <p>
- * Supported implementations: {@link DockerSandbox} (container isolation),
- * {@link LocalSandbox} (local process execution).
+ * Supported implementations: {@link LocalSandbox} (local process execution).
+ * </p>
+ *
+ * <p>
+ * File operations are available through the {@link #files()} accessor:
+ * </p>
+ *
+ * <pre>{@code
+ * sandbox.files()
+ *     .create("src/Main.java", code)
+ *     .create("pom.xml", pomContent)
+ *     .and()
+ *     .exec(ExecSpec.of("mvn", "compile"));
+ * }</pre>
+ *
+ * @see SandboxFiles
  */
 public interface Sandbox extends AutoCloseable {
 
@@ -75,5 +90,25 @@ public interface Sandbox extends AutoCloseable {
 	 */
 	@Override
 	void close();
+
+	/**
+	 * Get the file operations accessor for this sandbox.
+	 * <p>
+	 * Provides fluent API for creating, reading, and checking files in the sandbox
+	 * working directory.
+	 * </p>
+	 * @return the SandboxFiles accessor
+	 */
+	SandboxFiles files();
+
+	/**
+	 * Whether this sandbox should delete its working directory on close.
+	 * <p>
+	 * Returns true for temp directories created by the sandbox, false for user-specified
+	 * directories.
+	 * </p>
+	 * @return true if the working directory will be deleted on close
+	 */
+	boolean shouldCleanupOnClose();
 
 }
