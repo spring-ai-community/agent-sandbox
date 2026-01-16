@@ -20,7 +20,11 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Local filesystem implementation of {@link SandboxFiles}.
@@ -95,6 +99,87 @@ class LocalSandboxFiles implements SandboxFiles {
 	public boolean exists(String relativePath) {
 		Path path = workDir.resolve(relativePath);
 		return Files.exists(path);
+	}
+
+	@Override
+	public List<FileEntry> list(String relativePath) {
+		return list(relativePath, 1);
+	}
+
+	@Override
+	public List<FileEntry> list(String relativePath, int maxDepth) {
+		try {
+			Path dirPath = workDir.resolve(relativePath);
+			if (!Files.exists(dirPath)) {
+				throw new SandboxException("Path does not exist: " + relativePath);
+			}
+			if (!Files.isDirectory(dirPath)) {
+				throw new SandboxException("Path is not a directory: " + relativePath);
+			}
+
+			List<FileEntry> entries = new ArrayList<>();
+			try (Stream<Path> stream = Files.walk(dirPath, maxDepth)) {
+				stream.filter(p -> !p.equals(dirPath)).forEach(p -> {
+					try {
+						String name = p.getFileName().toString();
+						String path = workDir.relativize(p).toString();
+						FileType type = Files.isDirectory(p) ? FileType.DIRECTORY : FileType.FILE;
+						long size = Files.isDirectory(p) ? 0 : Files.size(p);
+						Instant modifiedTime = Files.getLastModifiedTime(p).toInstant();
+						entries.add(new FileEntry(name, type, path, size, modifiedTime));
+					}
+					catch (IOException e) {
+						throw new SandboxException("Failed to read file attributes: " + p, e);
+					}
+				});
+			}
+			return entries;
+		}
+		catch (SandboxException e) {
+			throw e;
+		}
+		catch (IOException e) {
+			throw new SandboxException("Failed to list directory: " + relativePath, e);
+		}
+	}
+
+	@Override
+	public SandboxFiles delete(String relativePath) {
+		return delete(relativePath, false);
+	}
+
+	@Override
+	public SandboxFiles delete(String relativePath, boolean recursive) {
+		try {
+			Path path = workDir.resolve(relativePath);
+			if (!Files.exists(path)) {
+				throw new SandboxException("Path does not exist: " + relativePath);
+			}
+
+			if (recursive && Files.isDirectory(path)) {
+				// Walk in reverse order (deepest first) to delete contents before parent
+				try (Stream<Path> stream = Files.walk(path)) {
+					stream.sorted(Comparator.reverseOrder()).forEach(p -> {
+						try {
+							Files.delete(p);
+						}
+						catch (IOException e) {
+							throw new SandboxException("Failed to delete: " + p, e);
+						}
+					});
+				}
+			}
+			else {
+				Files.delete(path);
+			}
+			return this;
+		}
+		catch (SandboxException e) {
+			throw e;
+		}
+		catch (IOException e) {
+			throw new SandboxException("Failed to delete: " + relativePath, e);
+		}
 	}
 
 	@Override

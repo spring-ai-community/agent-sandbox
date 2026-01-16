@@ -40,6 +40,7 @@
     <modules>
         <module>spring-ai-sandbox-core</module>
         <module>spring-ai-sandbox-docker</module>
+        <module>spring-ai-sandbox-e2b</module>
         <!-- <module>spring-ai-sandbox-bom</module> -->
     </modules>
 
@@ -111,10 +112,14 @@
         <!-- Docker support -->
         <testcontainers.version>1.20.4</testcontainers.version>
 
+        <!-- JSON processing -->
+        <jackson.version>2.17.0</jackson.version>
+
         <!-- Test dependency versions -->
         <junit-jupiter.version>5.10.1</junit-jupiter.version>
         <mockito.version>5.7.0</mockito.version>
         <assertj.version>3.24.2</assertj.version>
+        <awaitility.version>4.2.0</awaitility.version>
         <logback.version>1.4.14</logback.version>
 
         <!-- Plugin versions -->
@@ -143,6 +148,13 @@
                 <groupId>org.testcontainers</groupId>
                 <artifactId>testcontainers</artifactId>
                 <version>${testcontainers.version}</version>
+            </dependency>
+
+            <!-- JSON processing -->
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-databind</artifactId>
+                <version>${jackson.version}</version>
             </dependency>
 
             <!-- Slf4j API -->
@@ -195,6 +207,11 @@
                 <artifactId>logback-classic</artifactId>
                 <version>${logback.version}</version>
                 <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.awaitility</groupId>
+                <artifactId>awaitility</artifactId>
+                <version>${awaitility.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

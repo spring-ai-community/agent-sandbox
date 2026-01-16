@@ -15,7 +15,9 @@
  */
 package org.springaicommunity.sandbox;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
@@ -142,11 +144,16 @@ public final class LocalSandbox implements Sandbox {
 		// Handle shell commands
 		List<String> finalCommand = processCommand(command);
 
+		// Capture stdout and stderr separately - declared outside try for access in catch
+		ByteArrayOutputStream stdoutStream = new ByteArrayOutputStream();
+		ByteArrayOutputStream stderrStream = new ByteArrayOutputStream();
+
 		try {
 			// Use zt-exec for robust process execution
 			ProcessExecutor executor = new ProcessExecutor().command(finalCommand)
 				.directory(workingDirectory.toFile())
-				.readOutput(true)
+				.redirectOutput(stdoutStream)
+				.redirectError(stderrStream)
 				.destroyOnExit();
 
 			logger.debug("LocalSandbox executing command in directory: {}", workingDirectory);
@@ -185,13 +192,17 @@ public final class LocalSandbox implements Sandbox {
 			logger.debug("LocalSandbox command completed with exit code: {}", result.getExitValue());
 			Duration duration = Duration.between(startTime, Instant.now());
 
-			return new ExecResult(result.getExitValue(), result.outputUTF8(), duration);
+			String stdout = stdoutStream.toString(StandardCharsets.UTF_8);
+			String stderr = stderrStream.toString(StandardCharsets.UTF_8);
+			return new ExecResult(result.getExitValue(), stdout, stderr, duration);
 		}
 		catch (org.zeroturnaround.exec.InvalidExitValueException e) {
-			// zt-exec throws this for non-zero exit codes, but we want to return the
-			// result anyway
+			// zt-exec throws this for non-zero exit codes when expected values are set
+			// The streams are still populated, so we can return the captured output
 			Duration duration = Duration.between(startTime, Instant.now());
-			return new ExecResult(e.getExitValue(), e.getResult().outputUTF8(), duration);
+			String stdout = stdoutStream.toString(StandardCharsets.UTF_8);
+			String stderr = stderrStream.toString(StandardCharsets.UTF_8);
+			return new ExecResult(e.getExitValue(), stdout, stderr, duration);
 		}
 		catch (java.util.concurrent.TimeoutException e) {
 			org.springaicommunity.sandbox.TimeoutException timeoutException = new org.springaicommunity.sandbox.TimeoutException(

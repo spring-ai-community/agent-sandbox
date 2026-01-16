@@ -22,15 +22,35 @@ import java.util.Objects;
  * Result of executing a command via a {@link Sandbox}.
  *
  * <p>
- * Designed specifically for AI agent evaluation where the merged log output (stdout +
- * stderr interleaved) is analyzed by LLMs in a single pass. The temporal ordering of
- * output streams is preserved to maintain context for AI analysis.
+ * Provides separate access to stdout and stderr streams for programmatic analysis, while
+ * also offering a merged view for AI agent evaluation where the combined output is
+ * analyzed by LLMs in a single pass.
+ * </p>
+ *
+ * @param exitCode the process exit code (0 typically indicates success)
+ * @param stdout the standard output stream content
+ * @param stderr the standard error stream content
+ * @param duration the wall-clock time taken to execute the command
  */
-public record ExecResult(int exitCode, String mergedLog, Duration duration) {
+public record ExecResult(int exitCode, String stdout, String stderr, Duration duration) {
 
 	public ExecResult {
-		Objects.requireNonNull(mergedLog, "mergedLog cannot be null");
+		Objects.requireNonNull(stdout, "stdout cannot be null");
+		Objects.requireNonNull(stderr, "stderr cannot be null");
 		Objects.requireNonNull(duration, "duration cannot be null");
+	}
+
+	/**
+	 * Gets the merged output of stdout and stderr.
+	 * <p>
+	 * Useful for AI agent evaluation where the combined output is analyzed in a single
+	 * pass. Note that this is a simple concatenation (stdout + stderr), not temporally
+	 * interleaved.
+	 * </p>
+	 * @return combined stdout and stderr content
+	 */
+	public String mergedLog() {
+		return stdout + stderr;
 	}
 
 	/**
@@ -50,20 +70,36 @@ public record ExecResult(int exitCode, String mergedLog, Duration duration) {
 	}
 
 	/**
-	 * Checks if the execution produced any output.
-	 * @return true if mergedLog is not empty, false otherwise
+	 * Checks if the execution produced any output (stdout or stderr).
+	 * @return true if either stdout or stderr is not empty, false otherwise
 	 */
 	public boolean hasOutput() {
-		return !mergedLog.isEmpty();
+		return !stdout.isEmpty() || !stderr.isEmpty();
 	}
 
 	/**
-	 * Gets the length of the merged log output. Useful for metrics and determining if
-	 * output was truncated.
-	 * @return length of mergedLog in characters
+	 * Checks if the execution produced any stdout output.
+	 * @return true if stdout is not empty, false otherwise
+	 */
+	public boolean hasStdout() {
+		return !stdout.isEmpty();
+	}
+
+	/**
+	 * Checks if the execution produced any stderr output.
+	 * @return true if stderr is not empty, false otherwise
+	 */
+	public boolean hasStderr() {
+		return !stderr.isEmpty();
+	}
+
+	/**
+	 * Gets the total length of output (stdout + stderr). Useful for metrics and
+	 * determining if output was truncated.
+	 * @return combined length of stdout and stderr in characters
 	 */
 	public int outputLength() {
-		return mergedLog.length();
+		return stdout.length() + stderr.length();
 	}
 
 	/**
@@ -72,14 +108,15 @@ public record ExecResult(int exitCode, String mergedLog, Duration duration) {
 	 * @return concise summary of the execution result
 	 */
 	public String summary() {
-		return String.format("ExecResult{exitCode=%d, success=%s, duration=%s, outputLength=%d}", exitCode, success(),
-				duration, outputLength());
+		return String.format("ExecResult{exitCode=%d, success=%s, duration=%s, stdoutLen=%d, stderrLen=%d}", exitCode,
+				success(), duration, stdout.length(), stderr.length());
 	}
 
 	@Override
 	public String toString() {
 		// For debugging - includes full output but marks it clearly
-		return String.format("ExecResult{exitCode=%d, duration=%s, mergedLog='%s'}", exitCode, duration, mergedLog);
+		return String.format("ExecResult{exitCode=%d, duration=%s, stdout='%s', stderr='%s'}", exitCode, duration,
+				stdout, stderr);
 	}
 
 }

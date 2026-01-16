@@ -20,9 +20,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -48,10 +50,11 @@ public abstract class AbstractSandboxTCK {
 	protected Sandbox sandbox;
 
 	/**
-	 * Cleanup after each test to ensure resource isolation.
+	 * Cleanup after each test to ensure resource isolation. Subclasses may override this
+	 * to customize cleanup behavior (e.g., for shared sandbox implementations).
 	 */
 	@AfterEach
-	void tearDown() throws Exception {
+	protected void tearDown() throws Exception {
 		if (sandbox != null && !sandbox.isClosed()) {
 			sandbox.close();
 		}
@@ -144,7 +147,7 @@ public abstract class AbstractSandboxTCK {
 
 	/**
 	 * Test error handling functionality. Verifies that commands with non-zero exit codes
-	 * are properly handled.
+	 * are properly handled and stderr is captured.
 	 */
 	@Test
 	void testErrorHandling() throws Exception {
@@ -160,7 +163,85 @@ public abstract class AbstractSandboxTCK {
 		// Assert: Non-zero exit code handled correctly
 		assertThat(result.failed()).isTrue();
 		assertThat(result.exitCode()).isNotEqualTo(0);
+		// Error message should be in stderr
+		assertThat(result.stderr()).contains("No such file or directory");
+		// mergedLog should also contain it for backwards compatibility
 		assertThat(result.mergedLog()).contains("No such file or directory");
+	}
+
+	/**
+	 * Test stdout/stderr separation. Verifies that stdout content is captured in the
+	 * stdout field.
+	 */
+	@Test
+	void testStdoutCapture() throws Exception {
+		// Arrange
+		ExecSpec echoTest = ExecSpec.builder()
+			.command("echo", "stdout-content")
+			.timeout(Duration.ofSeconds(30))
+			.build();
+
+		// Act
+		ExecResult result = sandbox.exec(echoTest);
+
+		// Assert
+		assertThat(result.success()).isTrue();
+		assertThat(result.stdout()).contains("stdout-content");
+		assertThat(result.hasStdout()).isTrue();
+		// echo should not produce stderr
+		assertThat(result.stderr()).isEmpty();
+		assertThat(result.hasStderr()).isFalse();
+		// mergedLog should equal stdout when stderr is empty
+		assertThat(result.mergedLog()).isEqualTo(result.stdout());
+	}
+
+	/**
+	 * Test stderr capture. Verifies that error output is captured in the stderr field.
+	 */
+	@Test
+	void testStderrCapture() throws Exception {
+		// Arrange: Command that writes to stderr
+		ExecSpec stderrTest = ExecSpec.builder()
+			.shellCommand("echo 'error-message' >&2")
+			.timeout(Duration.ofSeconds(30))
+			.build();
+
+		// Act
+		ExecResult result = sandbox.exec(stderrTest);
+
+		// Assert
+		assertThat(result.success()).isTrue();
+		assertThat(result.stderr()).contains("error-message");
+		assertThat(result.hasStderr()).isTrue();
+		// Should not appear in stdout
+		assertThat(result.stdout()).doesNotContain("error-message");
+	}
+
+	/**
+	 * Test mixed stdout/stderr output. Verifies that both streams are captured
+	 * separately.
+	 */
+	@Test
+	void testMixedStdoutStderr() throws Exception {
+		// Arrange: Command that writes to both stdout and stderr
+		ExecSpec mixedTest = ExecSpec.builder()
+			.shellCommand("echo 'to-stdout' && echo 'to-stderr' >&2")
+			.timeout(Duration.ofSeconds(30))
+			.build();
+
+		// Act
+		ExecResult result = sandbox.exec(mixedTest);
+
+		// Assert
+		assertThat(result.success()).isTrue();
+		assertThat(result.stdout()).contains("to-stdout");
+		assertThat(result.stderr()).contains("to-stderr");
+		// mergedLog should contain both
+		assertThat(result.mergedLog()).contains("to-stdout");
+		assertThat(result.mergedLog()).contains("to-stderr");
+		// Verify they're in the correct streams (not swapped)
+		assertThat(result.stdout()).doesNotContain("to-stderr");
+		assertThat(result.stderr()).doesNotContain("to-stdout");
 	}
 
 	/**
@@ -227,6 +308,163 @@ public abstract class AbstractSandboxTCK {
 
 		// Assert: Sandbox is marked as closed
 		assertThat(sandbox.isClosed()).isTrue();
+	}
+
+	/**
+	 * Test directory listing functionality. Verifies that files and directories can be
+	 * listed.
+	 */
+	@Test
+	void testListDirectory() throws Exception {
+		// Arrange: Create some files and directories
+		sandbox.files().create("file1.txt", "content1").create("file2.txt", "content2").createDirectory("subdir");
+
+		// Act: List the root directory
+		List<FileEntry> entries = sandbox.files().list(".");
+
+		// Assert: Should contain the created files and directory
+		// Use contains() instead of containsExactlyInAnyOrder() to allow for
+		// sandbox-specific files (e.g., E2B has dotfiles in /home/user)
+		assertThat(entries).hasSizeGreaterThanOrEqualTo(3);
+		assertThat(entries).extracting(FileEntry::name).contains("file1.txt", "file2.txt", "subdir");
+
+		// Verify file types
+		assertThat(entries.stream().filter(e -> e.name().equals("file1.txt")).findFirst().get().isFile()).isTrue();
+		assertThat(entries.stream().filter(e -> e.name().equals("subdir")).findFirst().get().isDirectory()).isTrue();
+	}
+
+	/**
+	 * Test directory listing with depth. Verifies that recursive listing works correctly.
+	 */
+	@Test
+	void testListDirectoryWithDepth() throws Exception {
+		// Arrange: Create nested structure
+		sandbox.files()
+			.create("root.txt", "root")
+			.createDirectory("level1")
+			.create("level1/file1.txt", "level1 content")
+			.createDirectory("level1/level2")
+			.create("level1/level2/file2.txt", "level2 content");
+
+		// Act: List with depth 1 (immediate children only)
+		List<FileEntry> depth1 = sandbox.files().list(".", 1);
+
+		// Assert: Should see root level items (use contains to allow sandbox-specific
+		// files)
+		assertThat(depth1).extracting(FileEntry::name).contains("root.txt", "level1");
+
+		// Act: List with depth 2
+		List<FileEntry> depth2 = sandbox.files().list(".", 2);
+
+		// Assert: Should see root and level1 contents
+		assertThat(depth2).extracting(FileEntry::name).contains("root.txt", "level1", "file1.txt", "level2");
+	}
+
+	/**
+	 * Test listing non-existent directory. Verifies that appropriate exception is thrown.
+	 */
+	@Test
+	void testListNonExistentDirectory() {
+		// Act & Assert: Should throw SandboxException
+		assertThatThrownBy(() -> sandbox.files().list("nonexistent")).isInstanceOf(SandboxException.class)
+			.hasMessageContaining("does not exist");
+	}
+
+	/**
+	 * Test listing a file (not directory). Verifies that appropriate exception is thrown.
+	 */
+	@Test
+	void testListFileNotDirectory() throws Exception {
+		// Arrange: Create a file
+		sandbox.files().create("afile.txt", "content");
+
+		// Act & Assert: Should throw SandboxException
+		assertThatThrownBy(() -> sandbox.files().list("afile.txt")).isInstanceOf(SandboxException.class)
+			.hasMessageContaining("not a directory");
+	}
+
+	/**
+	 * Test file deletion. Verifies that files can be deleted.
+	 */
+	@Test
+	void testDeleteFile() throws Exception {
+		// Arrange: Create a file
+		sandbox.files().create("todelete.txt", "content");
+		assertThat(sandbox.files().exists("todelete.txt")).isTrue();
+
+		// Act: Delete the file
+		sandbox.files().delete("todelete.txt");
+
+		// Assert: File should no longer exist
+		assertThat(sandbox.files().exists("todelete.txt")).isFalse();
+	}
+
+	/**
+	 * Test empty directory deletion. Verifies that empty directories can be deleted
+	 * without recursive flag.
+	 */
+	@Test
+	void testDeleteEmptyDirectory() throws Exception {
+		// Arrange: Create an empty directory
+		sandbox.files().createDirectory("emptydir");
+		assertThat(sandbox.files().exists("emptydir")).isTrue();
+
+		// Act: Delete the directory
+		sandbox.files().delete("emptydir");
+
+		// Assert: Directory should no longer exist
+		assertThat(sandbox.files().exists("emptydir")).isFalse();
+	}
+
+	/**
+	 * Test recursive directory deletion. Verifies that directories with contents can be
+	 * deleted with recursive flag.
+	 */
+	@Test
+	void testDeleteDirectoryRecursive() throws Exception {
+		// Arrange: Create directory with contents
+		sandbox.files()
+			.createDirectory("dirwithcontent")
+			.create("dirwithcontent/file1.txt", "content1")
+			.create("dirwithcontent/file2.txt", "content2")
+			.createDirectory("dirwithcontent/subdir")
+			.create("dirwithcontent/subdir/nested.txt", "nested");
+
+		assertThat(sandbox.files().exists("dirwithcontent")).isTrue();
+		assertThat(sandbox.files().exists("dirwithcontent/subdir/nested.txt")).isTrue();
+
+		// Act: Delete recursively
+		sandbox.files().delete("dirwithcontent", true);
+
+		// Assert: Directory and all contents should be gone
+		assertThat(sandbox.files().exists("dirwithcontent")).isFalse();
+	}
+
+	/**
+	 * Test deleting non-existent path. Verifies that appropriate exception is thrown.
+	 */
+	@Test
+	void testDeleteNonExistent() {
+		// Act & Assert: Should throw SandboxException
+		assertThatThrownBy(() -> sandbox.files().delete("nonexistent")).isInstanceOf(SandboxException.class)
+			.hasMessageContaining("does not exist");
+	}
+
+	/**
+	 * Test delete method chaining. Verifies that delete returns the SandboxFiles for
+	 * chaining.
+	 */
+	@Test
+	void testDeleteChaining() throws Exception {
+		// Arrange: Create multiple files
+		sandbox.files().create("chain1.txt", "content1").create("chain2.txt", "content2");
+
+		// Act: Delete with chaining
+		sandbox.files().delete("chain1.txt").delete("chain2.txt");
+
+		// Assert: Both files should be deleted
+		assertThat(sandbox.files().exists("chain1.txt")).isFalse();
+		assertThat(sandbox.files().exists("chain2.txt")).isFalse();
 	}
 
 }

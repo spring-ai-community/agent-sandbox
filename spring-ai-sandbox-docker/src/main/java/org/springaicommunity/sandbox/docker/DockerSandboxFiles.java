@@ -16,8 +16,12 @@
 
 package org.springaicommunity.sandbox.docker;
 
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import org.springaicommunity.sandbox.FileEntry;
 import org.springaicommunity.sandbox.FileSpec;
+import org.springaicommunity.sandbox.FileType;
 import org.springaicommunity.sandbox.Sandbox;
 import org.springaicommunity.sandbox.SandboxException;
 import org.springaicommunity.sandbox.SandboxFiles;
@@ -133,6 +137,116 @@ class DockerSandboxFiles implements SandboxFiles {
 		}
 		catch (Exception e) {
 			return false;
+		}
+	}
+
+	@Override
+	public List<FileEntry> list(String relativePath) {
+		return list(relativePath, 1);
+	}
+
+	@Override
+	public List<FileEntry> list(String relativePath, int maxDepth) {
+		try {
+			String fullPath = "/work/" + relativePath;
+
+			// Check if path exists and is a directory
+			ExecResult testResult = container.execInContainer("test", "-d", fullPath);
+			if (testResult.getExitCode() != 0) {
+				// Check if it exists at all
+				ExecResult existsResult = container.execInContainer("test", "-e", fullPath);
+				if (existsResult.getExitCode() != 0) {
+					throw new SandboxException("Path does not exist: " + relativePath);
+				}
+				throw new SandboxException("Path is not a directory: " + relativePath);
+			}
+
+			// Use find command with maxdepth to list files
+			// Output format: type|size|mtime|path
+			// type: d for directory, f for file
+			// Use stat to get size and mtime
+			ExecResult findResult = container.execInContainer("bash", "-c", "find \"" + fullPath
+					+ "\" -mindepth 1 -maxdepth " + maxDepth + " -printf '%y|%s|%T@|%p\\n' 2>/dev/null | sort");
+
+			if (findResult.getExitCode() != 0) {
+				throw new SandboxException(
+						"Failed to list directory: " + relativePath + " - " + findResult.getStderr());
+			}
+
+			List<FileEntry> entries = new ArrayList<>();
+			String output = findResult.getStdout();
+			if (!output.isEmpty()) {
+				for (String line : output.split("\n")) {
+					if (line.trim().isEmpty()) {
+						continue;
+					}
+					String[] parts = line.split("\\|", 4);
+					if (parts.length >= 4) {
+						FileType type = "d".equals(parts[0]) ? FileType.DIRECTORY : FileType.FILE;
+						long size = type == FileType.DIRECTORY ? 0 : Long.parseLong(parts[1]);
+						// parts[2] is epoch seconds with decimal, parse to Instant
+						double epochSeconds = Double.parseDouble(parts[2]);
+						Instant modifiedTime = Instant.ofEpochSecond((long) epochSeconds,
+								(long) ((epochSeconds % 1) * 1_000_000_000));
+						String absolutePath = parts[3];
+						// Convert to relative path from workdir
+						String path = absolutePath.startsWith("/work/") ? absolutePath.substring(6) : absolutePath;
+						String name = path.contains("/") ? path.substring(path.lastIndexOf('/') + 1) : path;
+						entries.add(new FileEntry(name, type, path, size, modifiedTime));
+					}
+				}
+			}
+			return entries;
+		}
+		catch (SandboxException e) {
+			throw e;
+		}
+		catch (Exception e) {
+			throw new SandboxException("Failed to list directory: " + relativePath, e);
+		}
+	}
+
+	@Override
+	public SandboxFiles delete(String relativePath) {
+		return delete(relativePath, false);
+	}
+
+	@Override
+	public SandboxFiles delete(String relativePath, boolean recursive) {
+		try {
+			String fullPath = "/work/" + relativePath;
+
+			// Check if path exists
+			ExecResult existsResult = container.execInContainer("test", "-e", fullPath);
+			if (existsResult.getExitCode() != 0) {
+				throw new SandboxException("Path does not exist: " + relativePath);
+			}
+
+			ExecResult deleteResult;
+			if (recursive) {
+				deleteResult = container.execInContainer("rm", "-rf", fullPath);
+			}
+			else {
+				// For non-recursive, use rm for files and rmdir for directories
+				ExecResult isDirResult = container.execInContainer("test", "-d", fullPath);
+				if (isDirResult.getExitCode() == 0) {
+					deleteResult = container.execInContainer("rmdir", fullPath);
+				}
+				else {
+					deleteResult = container.execInContainer("rm", fullPath);
+				}
+			}
+
+			if (deleteResult.getExitCode() != 0) {
+				throw new SandboxException("Failed to delete: " + relativePath + " - " + deleteResult.getStderr());
+			}
+			return this;
+		}
+		catch (SandboxException e) {
+			throw e;
+		}
+		catch (Exception e) {
+			throw new SandboxException("Failed to delete: " + relativePath, e);
 		}
 	}
 

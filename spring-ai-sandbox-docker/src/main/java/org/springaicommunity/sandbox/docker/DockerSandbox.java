@@ -207,8 +207,7 @@ public final class DockerSandbox implements Sandbox {
 			}
 
 			var duration = Duration.between(startTime, Instant.now());
-			String mergedLog = result.getStdout() + result.getStderr();
-			return new ExecResult(result.getExitCode(), mergedLog, duration);
+			return new ExecResult(result.getExitCode(), result.getStdout(), result.getStderr(), duration);
 		}
 		catch (TimeoutException e) {
 			throw new SandboxException("Command timed out", e);

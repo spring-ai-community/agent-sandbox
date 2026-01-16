@@ -17,6 +17,7 @@
 package org.springaicommunity.sandbox;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 /**
  * Accessor for file operations within a sandbox workspace.
@@ -97,6 +98,48 @@ public interface SandboxFiles {
 	 * @return true if the path exists, false otherwise
 	 */
 	boolean exists(String relativePath);
+
+	/**
+	 * List files and directories at the specified path.
+	 * <p>
+	 * Returns immediate children only (depth 1). For recursive listing, use
+	 * {@link #list(String, int)}.
+	 * </p>
+	 * @param relativePath path relative to the sandbox working directory
+	 * @return list of file entries at the specified path
+	 * @throws SandboxException if the path does not exist or is not a directory
+	 */
+	List<FileEntry> list(String relativePath);
+
+	/**
+	 * List files and directories at the specified path with depth control.
+	 * @param relativePath path relative to the sandbox working directory
+	 * @param maxDepth maximum depth to traverse (1 for immediate children only)
+	 * @return list of file entries up to the specified depth
+	 * @throws SandboxException if the path does not exist or is not a directory
+	 */
+	List<FileEntry> list(String relativePath, int maxDepth);
+
+	/**
+	 * Delete a file or empty directory.
+	 * <p>
+	 * For non-empty directories, use {@link #delete(String, boolean)} with recursive
+	 * flag.
+	 * </p>
+	 * @param relativePath path relative to the sandbox working directory
+	 * @return this SandboxFiles for method chaining
+	 * @throws SandboxException if the path does not exist or deletion fails
+	 */
+	SandboxFiles delete(String relativePath);
+
+	/**
+	 * Delete a file or directory.
+	 * @param relativePath path relative to the sandbox working directory
+	 * @param recursive if true, recursively delete directory contents
+	 * @return this SandboxFiles for method chaining
+	 * @throws SandboxException if the path does not exist or deletion fails
+	 */
+	SandboxFiles delete(String relativePath, boolean recursive);
 
 	/**
 	 * Return to the parent Sandbox for continued method chaining.
