@@ -39,7 +39,7 @@
 
     <modules>
         <module>spring-ai-sandbox-core</module>
-        <!-- <module>spring-ai-sandbox-docker</module> -->
+        <module>spring-ai-sandbox-docker</module>
         <!-- <module>spring-ai-sandbox-bom</module> -->
     </modules>
 
@@ -156,6 +156,18 @@
             <dependency>
                 <groupId>org.springaicommunity</groupId>
                 <artifactId>spring-ai-sandbox-core</artifactId>
+                <version>${spring-ai-sandbox.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springaicommunity</groupId>
+                <artifactId>spring-ai-sandbox-core</artifactId>
+                <version>${spring-ai-sandbox.version}</version>
+                <type>test-jar</type>
+                <scope>test</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springaicommunity</groupId>
+                <artifactId>spring-ai-sandbox-docker</artifactId>
                 <version>${spring-ai-sandbox.version}</version>
             </dependency>
 
