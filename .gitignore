@@ -1,0 +1,39 @@
+# Maven
+target/
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+bin/
+out/
+
+# Logs
+*.log
+logs/
+
+# Editor backups
+*~
+*.swp
+*.swo
+.#*
+
+# Flattened POMs
+.flattened-pom.xml
