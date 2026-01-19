@@ -5,13 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.springaicommunity</groupId>
-    <artifactId>spring-ai-sandbox-parent</artifactId>
+    <artifactId>agent-sandbox-parent</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
-    <name>Spring AI Sandbox Parent</name>
-    <description>Spring AI Sandbox - Process Execution and Workspace Management</description>
-    <url>https://github.com/spring-ai-community/spring-ai-sandbox</url>
+    <name>Agent Sandbox Parent</name>
+    <description>Agent Sandbox - Process Execution and Workspace Management for AI Agents</description>
+    <url>https://github.com/spring-ai-community/agent-sandbox</url>
 
     <licenses>
         <license>
@@ -21,9 +21,9 @@
     </licenses>
 
     <scm>
-        <url>https://github.com/spring-ai-community/spring-ai-sandbox</url>
-        <connection>scm:git:git://github.com/spring-ai-community/spring-ai-sandbox.git</connection>
-        <developerConnection>scm:git:git@github.com:spring-ai-community/spring-ai-sandbox.git</developerConnection>
+        <url>https://github.com/spring-ai-community/agent-sandbox</url>
+        <connection>scm:git:git://github.com/spring-ai-community/agent-sandbox.git</connection>
+        <developerConnection>scm:git:git@github.com:spring-ai-community/agent-sandbox.git</developerConnection>
     </scm>
 
     <developers>
@@ -38,10 +38,10 @@
     </developers>
 
     <modules>
-        <module>spring-ai-sandbox-core</module>
-        <module>spring-ai-sandbox-docker</module>
-        <module>spring-ai-sandbox-e2b</module>
-        <!-- <module>spring-ai-sandbox-bom</module> -->
+        <module>agent-sandbox-core</module>
+        <module>agent-sandbox-docker</module>
+        <module>agent-sandbox-e2b</module>
+        <!-- <module>agent-sandbox-bom</module> -->
     </modules>
 
     <profiles>
@@ -100,8 +100,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-        <!-- Spring AI Sandbox project version -->
-        <spring-ai-sandbox.version>0.1.0-SNAPSHOT</spring-ai-sandbox.version>
+        <!-- Agent Sandbox project version -->
+        <agent-sandbox.version>0.1.0-SNAPSHOT</agent-sandbox.version>
 
         <!-- Core dependency versions -->
         <slf4j.version>2.0.9</slf4j.version>
@@ -167,20 +167,20 @@
             <!-- Project modules -->
             <dependency>
                 <groupId>org.springaicommunity</groupId>
-                <artifactId>spring-ai-sandbox-core</artifactId>
-                <version>${spring-ai-sandbox.version}</version>
+                <artifactId>agent-sandbox-core</artifactId>
+                <version>${agent-sandbox.version}</version>
             </dependency>
             <dependency>
                 <groupId>org.springaicommunity</groupId>
-                <artifactId>spring-ai-sandbox-core</artifactId>
-                <version>${spring-ai-sandbox.version}</version>
+                <artifactId>agent-sandbox-core</artifactId>
+                <version>${agent-sandbox.version}</version>
                 <type>test-jar</type>
                 <scope>test</scope>
             </dependency>
             <dependency>
                 <groupId>org.springaicommunity</groupId>
-                <artifactId>spring-ai-sandbox-docker</artifactId>
-                <version>${spring-ai-sandbox.version}</version>
+                <artifactId>agent-sandbox-docker</artifactId>
+                <version>${agent-sandbox.version}</version>
             </dependency>
 
             <!-- Testing dependencies -->

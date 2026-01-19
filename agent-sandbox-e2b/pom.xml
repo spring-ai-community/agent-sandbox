@@ -6,29 +6,41 @@
 
     <parent>
         <groupId>org.springaicommunity</groupId>
-        <artifactId>spring-ai-sandbox-parent</artifactId>
+        <artifactId>agent-sandbox-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>spring-ai-sandbox-core</artifactId>
-    <name>Spring AI Sandbox Core</name>
-    <description>Core sandbox abstractions for process execution and workspace management</description>
+    <artifactId>agent-sandbox-e2b</artifactId>
+    <name>Agent Sandbox E2B</name>
+    <description>E2B cloud sandbox implementation using remote Firecracker microVMs</description>
 
     <dependencies>
-        <!-- Process execution -->
+        <!-- Core sandbox abstractions -->
         <dependency>
-            <groupId>org.zeroturnaround</groupId>
-            <artifactId>zt-exec</artifactId>
+            <groupId>org.springaicommunity</groupId>
+            <artifactId>agent-sandbox-core</artifactId>
         </dependency>
 
-        <!-- Logging -->
+        <!-- JSON processing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+
+        <!-- Slf4j API -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <!-- Testing -->
+        <!-- Async wait utility -->
+        <dependency>
+            <groupId>org.awaitility</groupId>
+            <artifactId>awaitility</artifactId>
+        </dependency>
+
+        <!-- Testing dependencies -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -44,27 +56,32 @@
             <artifactId>logback-classic</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Core test classes for TCK -->
+        <dependency>
+            <groupId>org.springaicommunity</groupId>
+            <artifactId>agent-sandbox-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
         <plugins>
+            <!-- Unit tests (excludes *IT.java by default) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                </configuration>
             </plugin>
+            <!-- Integration tests (runs *IT.java during verify phase) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <version>${maven-jar-plugin.version}</version>
+                <artifactId>maven-failsafe-plugin</artifactId>
+                <version>3.1.2</version>
                 <executions>
                     <execution>
                         <goals>
-                            <goal>test-jar</goal>
+                            <goal>integration-test</goal>
+                            <goal>verify</goal>
                         </goals>
                     </execution>
                 </executions>

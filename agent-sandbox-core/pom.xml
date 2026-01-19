@@ -6,35 +6,29 @@
 
     <parent>
         <groupId>org.springaicommunity</groupId>
-        <artifactId>spring-ai-sandbox-parent</artifactId>
+        <artifactId>agent-sandbox-parent</artifactId>
         <version>0.1.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>spring-ai-sandbox-docker</artifactId>
-    <name>Spring AI Sandbox Docker</name>
-    <description>Docker container-based sandbox implementation using Testcontainers</description>
+    <artifactId>agent-sandbox-core</artifactId>
+    <name>Agent Sandbox Core</name>
+    <description>Core sandbox abstractions for process execution and workspace management</description>
 
     <dependencies>
-        <!-- Core sandbox abstractions -->
+        <!-- Process execution -->
         <dependency>
-            <groupId>org.springaicommunity</groupId>
-            <artifactId>spring-ai-sandbox-core</artifactId>
+            <groupId>org.zeroturnaround</groupId>
+            <artifactId>zt-exec</artifactId>
         </dependency>
 
-        <!-- Testcontainers for Docker support -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>testcontainers</artifactId>
-        </dependency>
-
-        <!-- Slf4j API -->
+        <!-- Logging -->
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
         </dependency>
 
-        <!-- Testing dependencies -->
+        <!-- Testing -->
         <dependency>
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
@@ -50,13 +44,6 @@
             <artifactId>logback-classic</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- Core test classes for TCK -->
-        <dependency>
-            <groupId>org.springaicommunity</groupId>
-            <artifactId>spring-ai-sandbox-core</artifactId>
-            <type>test-jar</type>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <build>
@@ -64,6 +51,23 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>${maven-jar-plugin.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
