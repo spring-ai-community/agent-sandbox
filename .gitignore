@@ -37,3 +37,5 @@ logs/
 
 # Flattened POMs
 .flattened-pom.xml
+plans/
+CLAUDE.md
