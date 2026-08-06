@@ -1,3 +1,14 @@
+> [!IMPORTANT]
+> **This repository is no longer maintained.**
+>
+> Active development has moved to
+> [markpollack/agent-sandbox](https://github.com/markpollack/agent-sandbox).
+> Current documentation is available at [lab.pollack.ai](https://lab.pollack.ai/projects/agent-sandbox).
+>
+> This repository remains available for historical Spring AI Community releases.
+> Its Apache 2.0 license and historical contents are unchanged. Please submit new
+> issues and pull requests to the active repository.
+
 # Agent Sandbox
 
 Unified API for isolated command execution across multiple backends. Same interface for local processes, Docker containers, and E2B cloud microVMs.
